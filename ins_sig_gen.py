@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.signal as sig
 
 
 def log_f( x, max_val ):
@@ -31,8 +32,9 @@ def get_motion_info( accel_data, period ):
 
 def generate_signals(	
 					 imu_period, 
-					 acc_bias, 
 					 acc_w_std, 
+					 acc_bias_const, 
+					 acc_bias_w_std,
 					 
 					 gnss_period,
 					 gnss_w_std,
@@ -46,14 +48,19 @@ def generate_signals(
 	end_time = start_time + duration
 
 	# Real signals
-	time = np.arange(0, duration, imu_period)
-	accel = [ accel_f(t, start_time, max_dist, scale) for t in time ]
+	time_imu = np.arange(0, duration, imu_period)
+	accel = [ accel_f(t, start_time, max_dist, scale) for t in time_imu ]
 	[dist, speed] = get_motion_info(accel, imu_period)
 	
 	# IMU signals
-	accel_noise = np.random.normal(0, acc_w_std, size=len(time))
+	accel_noise = np.random.normal(0, acc_w_std, size=len(time_imu))
+	acc_bias_inst = np.cumsum(np.random.normal(0, acc_bias_w_std, size=len(time_imu)))
+	#[b, a] = sig.butter(N=1, Wn=0.02)
+	#acc_bias_inst = sig.lfilter(b, a, acc_bias_inst)
+	acc_bias = acc_bias_inst + acc_bias_const
 	accel_noisy = accel + accel_noise + acc_bias
 	[dist_noisy, speed_noisy] = get_motion_info(accel_noisy, imu_period)
+	
 	
 	# Gnss signal
 	time_gnss = np.arange(gnss_period, duration, gnss_period)
@@ -61,8 +68,9 @@ def generate_signals(
 	coeff = gnss_period / imu_period
 	for t in time_gnss:
 		gnss_dist.append(dist[int(coeff * t)])
-		
 	gnss_dist = gnss_dist + np.random.normal(0, gnss_w_std, size=len(time_gnss))
 	
-	return [time, accel, speed, dist, accel_noisy, speed_noisy, dist_noisy, time_gnss, gnss_dist]
+	return [time_imu, accel, speed, dist, 
+			acc_bias, accel_noisy, speed_noisy, dist_noisy, 
+			time_gnss, gnss_dist]
 	
