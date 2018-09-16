@@ -29,19 +29,40 @@ def get_motion_info( accel_data, period ):
 		
 	return [ dist, speed ]
 
-def generate_signals(period, noise_std=0.02, max_dist=10, start_time=-15, duration=25, scale=1.3):
+def generate_signals(	
+					 imu_period, 
+					 acc_bias, 
+					 acc_w_std, 
+					 
+					 gnss_period,
+					 gnss_w_std,
+						
+					 max_dist=10, 
+					 start_time=-15, 
+					 duration=25, 
+					 scale=1.3
+					):
+					
 	end_time = start_time + duration
 
-	time = np.arange(0, duration, period )
+	# Real signals
+	time = np.arange(0, duration, imu_period)
 	accel = [ accel_f(t, start_time, max_dist, scale) for t in time ]
-	[dist, speed] = get_motion_info( accel, period )
+	[dist, speed] = get_motion_info(accel, imu_period)
 	
-	# Generate noise
-	noise_w = np.random.normal(0, noise_std, size=len(time))
-	# Noisy accel
-	accel_noisy = accel + noise_w
-	# Noisy motion
-	[dist_noisy, speed_noisy] = get_motion_info( accel_noisy, period )
+	# IMU signals
+	accel_noise = np.random.normal(0, acc_w_std, size=len(time))
+	accel_noisy = accel + accel_noise + acc_bias
+	[dist_noisy, speed_noisy] = get_motion_info(accel_noisy, imu_period)
 	
-	return [time, accel, speed, dist, accel_noisy, speed_noisy, dist_noisy]
+	# Gnss signal
+	time_gnss = np.arange(gnss_period, duration, gnss_period)
+	gnss_dist = []
+	coeff = gnss_period / imu_period
+	for t in time_gnss:
+		gnss_dist.append(dist[int(coeff * t)])
+		
+	gnss_dist = gnss_dist + np.random.normal(0, gnss_w_std, size=len(time_gnss))
+	
+	return [time, accel, speed, dist, accel_noisy, speed_noisy, dist_noisy, time_gnss, gnss_dist]
 	

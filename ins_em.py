@@ -4,22 +4,30 @@ from ins_sig_gen import generate_signals
 
 
 # Config
-period = 0.01
-noise_w_std = 0.1
+acc_period = 0.01
+acc_bias = 0.01
+acc_w_std = 0.03
+gnss_period = 1
+gnss_w_std = 1
 
 
-[time, 
+# Generate INS signals
+[time_acc, 
 accel_real, speed_real, dist_real, 
-accel_noisy, speed_noisy, dist_noisy] = generate_signals( period )
+accel_noisy, speed_noisy, dist_noisy,
+time_gnss, dist_gnss] = generate_signals( 
+	acc_period, acc_bias, acc_w_std,
+	gnss_period, gnss_w_std 
+)
 
 plt.figure()
 plt.title('accel')
-plt.plot(time, accel_real, time, accel_noisy)
+plt.plot(time_acc, accel_real, time_acc, accel_noisy)
 plt.figure()
 plt.title('speed')
-plt.plot(time, speed_real, time, speed_noisy)
+plt.plot(time_acc, speed_real, time_acc, speed_noisy)
 plt.figure()
 plt.title('dst')
-plt.plot(time, dist_real, time, dist_noisy)
+plt.plot(time_acc, dist_real, time_acc, dist_noisy, time_gnss, dist_gnss)
 
 plt.show()
