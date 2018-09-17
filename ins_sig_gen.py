@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.ma as ma
 import matplotlib.pyplot as plt
 import scipy.signal as sig
 
@@ -61,11 +62,10 @@ def generate_signals(
 	accel_noisy = accel + accel_noise + acc_bias
 	[dist_noisy, speed_noisy] = get_motion_info(accel_noisy, imu_period)
 	
-	
 	# Gnss signal
 	time_gnss = np.arange(gnss_period, duration, gnss_period)
 	gnss_dist = []
-	coeff = gnss_period / imu_period
+	coeff = 1 / imu_period
 	for t in time_gnss:
 		gnss_dist.append(dist[int(coeff * t)])
 	gnss_dist = gnss_dist + np.random.normal(0, gnss_w_std, size=len(time_gnss))
