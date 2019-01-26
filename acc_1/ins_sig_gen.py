@@ -55,11 +55,8 @@ def generate_signals(
 	
 	# IMU signals
 	accel_noise = np.random.normal(0, acc_w_std, size=len(time_imu))
-	acc_bias_inst = np.cumsum(np.random.normal(0, acc_bias_w_std, size=len(time_imu)))
-	#[b, a] = sig.butter(N=1, Wn=0.02)
-	#acc_bias_inst = sig.lfilter(b, a, acc_bias_inst)
-	acc_bias = acc_bias_inst + acc_bias_const
-	accel_noisy = accel + accel_noise + acc_bias
+	acc_bias = [ acc_bias_const for t in time_imu ]
+	accel_noisy = accel + accel_noise + acc_bias_const
 	[dist_noisy, speed_noisy] = get_motion_info(accel_noisy, imu_period)
 	
 	# Gnss signal

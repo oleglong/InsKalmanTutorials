@@ -24,7 +24,7 @@ def kfilter(imu_time, imu_dist, gnss_time, gnss_dist, std_acc_bias, std_gnss):
 	# State prediction matrix
 	F = np.matrix([[1, 0, 0 ],
 				  [imu_dt, 1, 0],
-				  [0, imu_dt, 1]])
+				  [0.5 * imu_dt**2, imu_dt, 1]])
 	# Process noise matrix
 	Q = np.matrix([
 		[0, 0, 0],
