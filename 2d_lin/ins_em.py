@@ -1,65 +1,96 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from ins_sig_gen import generate_signals
-#from ins_kalman import kfilter
+from ins_ekf import ins_ext_kfilter
 
 
 # Config
 imu_period = 0.01
-acc_bias_std = 0.1
-acc_w_std = 0.03
+accel_bias_std = 0.0
+accel_w_std = 0.03
 gnss_period = 0.5
 gnss_w_std = 5
-body_alpha = np.pi / 4 + 0.1
+imu_body_alpha0_std = 5 / 180 * np.pi
 speed_changes = [
-	[10, 5],
-	[-5, 7],
-	[0, 10]
+	[ +3, 10 ],
+	[  0, 10 ],
+	[ +4, 12 ],
+	[ -2, 15 ],
+	[ +5, 8  ],
+	[ -4, 15 ],
+	[ -4, 10 ],
+	[ -2, 15 ]
 ]
 
 # Generate INS signals
-[time, 
- imu_accel, imu_accel_bias,
- global_accel, global_speed, global_dist,
- gnss_time, gnss_dist] = generate_signals( 
+[ imu_time, imu_accel, 
+  gnss_time, gnss_dist,
+  real_accel_bias, real_body_angles, 
+  real_glob_accel, real_glob_speed, real_glob_dist 
+] = generate_signals( 
 	speed_changes,
-	imu_period, acc_bias_std, acc_w_std,
-	gnss_period, gnss_w_std,
-	body_alpha
+	imu_period, accel_bias_std, accel_w_std,
+	gnss_period, gnss_w_std
 )
+# Initial params estimation
+real_body_alpha0 = real_body_angles[0].item( ( 0, 0 ) )
+imu_body_alpha0 = real_body_alpha0 + np.random.normal( 0, imu_body_alpha0_std )
+print('Real a0: ' + str(real_body_alpha0 / np.pi * 180) + ', estimated a0: ' + str(imu_body_alpha0 / np.pi * 180) )
+
+# Estimate body motion
+ins_state = ins_ext_kfilter( 
+	imu_time, imu_accel, imu_body_alpha0, imu_body_alpha0_std, 
+	gnss_time, gnss_dist, gnss_w_std )
+
 
 imu_accel_x 		= [ v.item( (0, 0) ) for v in imu_accel ]
 imu_accel_y 		= [ v.item( (1, 0) ) for v in imu_accel ]
-imu_accel_bias_x 	= [ v.item( (0, 0) ) for v in imu_accel_bias ]
-imu_accel_bias_y 	= [ v.item( (1, 0) ) for v in imu_accel_bias ]
-global_accel_x 		= [ v.item( (0, 0) ) for v in global_accel ]
-global_accel_y 		= [ v.item( (1, 0) ) for v in global_accel ]
-global_speed_x 		= [ v.item( (0, 0) ) for v in global_speed ]
-global_speed_y 		= [ v.item( (1, 0) ) for v in global_speed ]
-global_dist_x 		= [ v.item( (0, 0) ) for v in global_dist ]
-global_dist_y 		= [ v.item( (1, 0) ) for v in global_dist ]
 gnss_dist_x 		= [ v.item( (0, 0) ) for v in gnss_dist ]
 gnss_dist_y 		= [ v.item( (1, 0) ) for v in gnss_dist ]
+
+real_accel_bias_x 	= [ v.item( (0, 0) ) for v in real_accel_bias ]
+real_accel_bias_y 	= [ v.item( (1, 0) ) for v in real_accel_bias ]
+real_glob_accel_x 	= [ v.item( (0, 0) ) for v in real_glob_accel ]
+real_glob_accel_y 	= [ v.item( (1, 0) ) for v in real_glob_accel ]
+real_glob_speed_x 	= [ v.item( (0, 0) ) for v in real_glob_speed ]
+real_glob_speed_y 	= [ v.item( (1, 0) ) for v in real_glob_speed ]
+real_glob_dist_x 	= [ v.item( (0, 0) ) for v in real_glob_dist ]
+real_glob_dist_y 	= [ v.item( (1, 0) ) for v in real_glob_dist ]
+real_body_alpha		= [ v.item( (0, 0) ) / np.pi * 180 for v in real_body_angles ]
+
+ekf_glob_dist_x		= [ v.item( ( 0, 0 ) ) 	for v in ins_state ]
+ekf_glob_dist_y		= [ v.item( ( 1, 0 ) ) 	for v in ins_state ]
+ekf_glob_speed_x	= [ v.item( ( 2, 0 ) ) 	for v in ins_state ]
+ekf_glob_speed_y	= [ v.item( ( 3, 0 ) ) 	for v in ins_state ]
+ekf_alpha			= [ v.item( ( 4, 0 ) ) / np.pi * 180 for v in ins_state ]
 
 plt.figure()
 plt.title('accel')
 plt.subplot(211)
-plt.plot(time, imu_accel_x, 'r', time, imu_accel_bias_x, 'm', time, global_accel_x, 'b')
+plt.plot(imu_time, imu_accel_x, 'r', imu_time, real_accel_bias_x, 'm', imu_time, real_glob_accel_x, 'b')
 plt.subplot(212)
-plt.plot(time, imu_accel_y, 'r', time, imu_accel_bias_y, 'm', time, global_accel_y, 'b')
+plt.plot(imu_time, imu_accel_y, 'r', imu_time, real_accel_bias_y, 'm', imu_time, real_glob_accel_y, 'b')
 
 plt.figure()
 plt.title('speed')
 plt.subplot(211)
-plt.plot(time, global_speed_x, 'b')
+plt.plot(imu_time, real_glob_speed_x, 'b', imu_time, ekf_glob_speed_x, 'c')
 plt.subplot(212)
-plt.plot(time, global_speed_y, 'b')
+plt.plot(imu_time, real_glob_speed_y, 'b', imu_time, ekf_glob_speed_y, 'c')
 
 plt.figure()
 plt.title('dist')
 plt.subplot(211)
-plt.plot(time, global_dist_x, 'b', gnss_time, gnss_dist_x, 'g')
+plt.plot(imu_time, real_glob_dist_x, 'b', gnss_time, gnss_dist_x, 'g', imu_time, ekf_glob_dist_x, 'c')
 plt.subplot(212)
-plt.plot(time, global_dist_y, 'b', gnss_time, gnss_dist_y, 'g')
+plt.plot(imu_time, real_glob_dist_y, 'b', gnss_time, gnss_dist_y, 'g', imu_time, ekf_glob_dist_y, 'c')
+
+plt.figure()
+plt.title('surf')
+plt.plot(real_glob_dist_x, real_glob_dist_y, 'b', gnss_dist_x, gnss_dist_y, 'g', ekf_glob_dist_x, ekf_glob_dist_y, 'c')
+
+plt.figure()
+plt.title('alpha')
+plt.plot(imu_time, real_body_alpha, 'b', imu_time, ekf_alpha, 'c' )
 
 plt.show()

@@ -105,12 +105,7 @@ def generate_signals(
 					 acc_w_std,  
 					 
 					 gnss_period,
-					 gnss_w_std,
-					 
-					 # Initial angle between body axes and global axes
-					 body_alpha0,
-					 # Initial angle betwen IMU axes and body axes
-					 imu_alpha0 = 0
+					 gnss_w_std
 					):
 	# Linear motion along one axis
 	body_one_axis_speed = linear_speed_from_changes( speed_changes, imu_period )
@@ -118,7 +113,7 @@ def generate_signals(
 	# Time data
 	samples_count = len( body_one_axis_speed )
 	max_time = samples_count * imu_period
-	time = np.arange( 0, max_time, imu_period )
+	imu_time = np.arange( 0, max_time, imu_period )
 	
 	######################### BODY frame
 	# Speed in axes of body
@@ -133,14 +128,22 @@ def generate_signals(
 	]
 	# Accel in axes of body
 	body_accel = accel_from_speed( body_speed, imu_period )
+	# Initial orientation
+	body_alpha0 = ( np.random.rand() - 0.5 ) * np.pi
+	body_alpha = [
+		np.matrix([
+			[ body_alpha0 ]
+		])
+		for t in imu_time
+	]	
 	
 	######################### GLOBAL frame
 	# Rotation from body frame to global frame
-	global_dcm = np.matrix ([
+	body_dcm0 = np.matrix ([
 		[ np.cos( body_alpha0 ), -np.sin( body_alpha0 ) ],
 		[ np.sin( body_alpha0 ), np.cos( body_alpha0 ) ]
 	])
-	global_accel = [ global_dcm * acc for acc in body_accel ]
+	global_accel = [ body_dcm0 * acc for acc in body_accel ]
 	global_speed = speed_from_accel( global_accel, imu_period )
 	global_dist = dist_from_speed( global_speed, imu_period )
 	
@@ -167,7 +170,7 @@ def generate_signals(
 			# Y
 			[ np.random.normal(0, acc_w_std) ]
 		])
-		for t in time
+		for t in imu_time
 	]
 	# Accel bias
 	imu_accel_bias_x = np.random.normal(0, acc_bias_w_std)
@@ -179,12 +182,14 @@ def generate_signals(
 			# Y
 			[ imu_accel_bias_y ]
 		])
-		for t in time
+		for t in imu_time
 	]
 	# Noisy IMU accel output
 	imu_accel = [ body + w_noise + bias for body, w_noise, bias in zip( body_accel, imu_accel_w_noise, imu_accel_bias ) ]
 	
-	return [ time, 
-			 imu_accel, imu_accel_bias,
-			 global_accel, global_speed, global_dist,
-			 gnss_time, gnss_dist ]
+	return [ # System inputs
+			 imu_time, imu_accel, 
+			 gnss_time, gnss_dist,
+			 # Reference data
+			 imu_accel_bias, body_alpha,
+			 global_accel, global_speed, global_dist ]
