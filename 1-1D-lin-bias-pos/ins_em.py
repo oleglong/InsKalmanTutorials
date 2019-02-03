@@ -8,7 +8,6 @@ from ins_kalman import kfilter
 acc_period = 0.01
 acc_bias_const = 0.05
 acc_bias_const_std = 0.1
-acc_bias_w_std = 0.0000
 acc_w_std = 0.03
 gnss_period = 0.5
 gnss_w_std = 1
@@ -19,7 +18,7 @@ gnss_w_std = 1
 accel_real, speed_real, dist_real, 
 accel_bias, accel_ins, speed_ins, dist_ins,
 time_gnss, dist_gnss] = generate_signals( 
-	acc_period, acc_w_std, acc_bias_const, acc_bias_w_std, 
+	acc_period, acc_w_std, acc_bias_const, 
 	gnss_period, gnss_w_std 
 )
 

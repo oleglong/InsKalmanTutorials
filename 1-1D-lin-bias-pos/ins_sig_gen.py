@@ -35,7 +35,6 @@ def generate_signals(
 					 imu_period, 
 					 acc_w_std, 
 					 acc_bias_const, 
-					 acc_bias_w_std,
 					 
 					 gnss_period,
 					 gnss_w_std,

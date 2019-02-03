@@ -105,7 +105,8 @@ def generate_signals(
 					 acc_w_std,  
 					 
 					 gnss_period,
-					 gnss_w_std
+					 gnss_speed_w_std,
+					 gnss_dist_w_std
 					):
 	# Linear motion along one axis
 	body_one_axis_speed = linear_speed_from_changes( speed_changes, imu_period )
@@ -149,15 +150,41 @@ def generate_signals(
 	
 	######################### GNSS
 	gnss_time = np.arange( gnss_period, max_time, gnss_period )
+	
 	gnss_dist = []
+	gnss_speed = []
+	
 	gnss_coeff = 1 / imu_period
-	for t in gnss_time:
+	for t in gnss_time:	
+		# Distance
+		dist_x = global_dist[int( gnss_coeff * t )].item( (0, 0) )
+		dist_y = global_dist[int( gnss_coeff * t )].item( (1, 0) )
+		# Distance white noise
+		dist_noise_x = np.random.normal( 0, gnss_dist_w_std )
+		dist_noise_y = np.random.normal( 0, gnss_dist_w_std )
+		# GNSS distance
 		gnss_dist.append( 
 			np.matrix([
 				# X
-				[ global_dist[int( gnss_coeff * t )].item( (0, 0) ) + np.random.normal( 0, gnss_w_std ) ],
+				[ dist_x + dist_noise_x ],
 				# Y
-				[ global_dist[int( gnss_coeff * t )].item( (1, 0) ) + np.random.normal( 0, gnss_w_std ) ]
+				[ dist_y + dist_noise_y ]
+			]) 
+		)		
+		
+		# Speed
+		speed_x = global_speed[int( gnss_coeff * t )].item( (0, 0) )
+		speed_y = global_speed[int( gnss_coeff * t )].item( (1, 0) )
+		# Speed white noise
+		speed_noise_x = np.random.normal( 0, gnss_speed_w_std )
+		speed_noise_y = np.random.normal( 0, gnss_speed_w_std )
+		# GNSS speed
+		gnss_speed.append( 
+			np.matrix([
+				# X
+				[ speed_x + speed_noise_x ],
+				# Y
+				[ speed_y + speed_noise_y ]
 			]) 
 		)
 	
@@ -189,7 +216,7 @@ def generate_signals(
 	
 	return [ # System inputs
 			 imu_time, imu_accel, 
-			 gnss_time, gnss_dist,
+			 gnss_time, gnss_speed, gnss_dist,
 			 # Reference data
 			 imu_accel_bias, body_alpha,
 			 global_accel, global_speed, global_dist ]
