@@ -143,6 +143,13 @@ def get_body_motion( global_alpha0, alpha_changes, speed_changes, period ):
 		])
 		for speed in global_speed_norm
 	]	
+	# Convert to matrix 
+	global_speed_norm = [
+		np.matrix([
+			[ speed ]
+		])
+		for speed in global_speed_norm
+	]
 	# Body rotation angle
 	body_alpha = [
 		np.matrix([
@@ -210,7 +217,9 @@ def get_gnss_signal( global_speed_norm, global_dist, gnss_speed_w_std, gnss_dist
 		# Speed
 		speed_norm = global_speed_norm[int( gnss_coeff * t )]
 		# Speed white noise
-		speed_noise = np.random.normal( 0, gnss_speed_w_std )
+		speed_noise = np.matrix([
+			[ np.random.normal( 0, gnss_speed_w_std ) ]
+		])
 		# GNSS speed
 		gnss_speed.append( 
 			speed_norm + speed_noise

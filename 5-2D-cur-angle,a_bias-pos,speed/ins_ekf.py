@@ -13,6 +13,7 @@ def exec_f_func( x_vect, u_vect, period ):
 	
 	est_accel_ix = u_vect.item( ( 0, 0 ) ) - accel_bias_x
 	est_accel_iy = u_vect.item( ( 1, 0 ) ) - accel_bias_y
+	alpha_speed = u_vect.item( ( 2, 0 ) )
 	
 	accel_gx = np.cos( alpha ) * est_accel_ix - np.sin( alpha ) * est_accel_iy
 	accel_gy = np.sin( alpha ) * est_accel_ix + np.cos( alpha ) * est_accel_iy
@@ -27,7 +28,7 @@ def exec_f_func( x_vect, u_vect, period ):
 		[ speed_gy + accel_gy * dt ],
 		[ accel_bias_x ],
 		[ accel_bias_y ],
-		[ alpha ],
+		[ alpha + alpha_speed * dt],
 	])
 	
 # State prediction Jacobian matrix
@@ -38,6 +39,7 @@ def get_F_matrix( x_vect, u_vect, period ):
 	
 	est_accel_ix = u_vect.item( ( 0, 0 ) ) - accel_bias_x
 	est_accel_iy = u_vect.item( ( 1, 0 ) ) - accel_bias_y
+	alpha_speed = u_vect.item( ( 2, 0 ) )
 	
 	# d(accel_gx)/d(accel_bias_x)
 	d_agx_d_bx = -np.cos( alpha )
@@ -73,24 +75,30 @@ def exec_h_func( x_vect, period ):
 	pos_gy   = x_vect.item( ( 1, 0 ) )
 	speed_gx = x_vect.item( ( 2, 0 ) )
 	speed_gy = x_vect.item( ( 3, 0 ) )
+	speed_norm = np.sqrt( speed_gx**2 + speed_gy**2 )
 	
 	return np.matrix([
 		[ pos_gx ],
 		[ pos_gy ],
-		[ speed_gx ],
-		[ speed_gy ]
+		[ speed_norm ]
 	])	
 	
 # Measurement Jacobian matrix
 def get_H_matrix( x_vect, period ):
+	speed_gx = x_vect.item( ( 2, 0 ) )
+	speed_gy = x_vect.item( ( 3, 0 ) )
+	
+	# d(speed_norm)/d(speed_gx)
+	d_sn_d_sgx = speed_gx / np.sqrt( speed_gx**2 + speed_gy**2 )
+	d_sn_d_sgy = speed_gy / np.sqrt( speed_gx**2 + speed_gy**2 )
+
 	return np.matrix([
-		[ 1, 0, 0, 0, 0, 0, 0 ],
-		[ 0, 1, 0, 0, 0, 0, 0 ],
-		[ 0, 0, 1, 0, 0, 0, 0 ],
-		[ 0, 0, 0, 1, 0, 0, 0 ]
+		[ 1,  0,  0,          0,           0,  0,  0 ],
+		[ 0,  1,  0,          0,           0,  0,  0 ],
+		[ 0,  0,  d_sn_d_sgx, d_sn_d_sgy,  0,  0,  0 ]
 	])
 	
-def ins_ext_kfilter( imu_time, imu_accel, accel_bias_std, 
+def ins_ext_kfilter( imu_time, imu_accel, imu_gyro, accel_bias_std, 
 					 alpha0, alpha0_std, 
 					 gnss_time, gnss_speed, gnss_dist, gnss_speed_std, gnss_dist_std ):
 	# Output data
@@ -128,10 +136,9 @@ def ins_ext_kfilter( imu_time, imu_accel, accel_bias_std,
 	])
 	# Measurement noise matrix
 	R = np.matrix([
-		[gnss_dist_std**2,  0,                 0,                  0                ],
-		[0,                 gnss_dist_std**2,  0,                  0                ],
-		[0,                 0,                 gnss_speed_std**2,  0                ],
-		[0,                 0,                 0,                  gnss_speed_std**2]
+		[gnss_dist_std**2,  0,                 0,                  ],
+		[0,                 gnss_dist_std**2,  0,                  ],
+		[0,                 0,                 gnss_speed_std**2,  ]
 	])
 	# State covariance matrix
 	P = np.matrix([
@@ -145,25 +152,22 @@ def ins_ext_kfilter( imu_time, imu_accel, accel_bias_std,
 	])
 	
 	gnss_i = 0
-	for t, U in zip( imu_time, imu_accel ):
+	for t, accel, gyro in zip( imu_time, imu_accel, imu_gyro ):
 		# Gnss data available
 		if ( gnss_i < len( gnss_time ) and t > gnss_time[ gnss_i ] ):			
 			# ----- Kalman update step
 			H = get_H_matrix( X, imu_dt )
 			gnss_dist_x = gnss_dist[ gnss_i ].item( ( 0, 0 ) )
 			gnss_dist_y = gnss_dist[ gnss_i ].item( ( 1, 0 ) )
-			gnss_speed_x = gnss_speed[ gnss_i ].item( ( 0, 0 ) )
-			gnss_speed_y = gnss_speed[ gnss_i ].item( ( 1, 0 ) )
+			gnss_speed_norm = gnss_speed[ gnss_i ].item( ( 0, 0 ) )
 			# Measurement matrix
 			Z = np.matrix([
 				# X position
 				[ gnss_dist_x ],
 				# Y position
 				[ gnss_dist_y ],
-				# X speed
-				[ gnss_speed_x ],
-				# Y speed
-				[ gnss_speed_y ]
+				# Speed norm
+				[ gnss_speed_norm ]
 			])
 			
 			# Calculate gain
@@ -175,6 +179,15 @@ def ins_ext_kfilter( imu_time, imu_accel, accel_bias_std,
 			
 			gnss_i = gnss_i + 1
 			
+		# Control vector matrix
+		U = np.matrix([
+			# X accel
+			[ accel.item( ( 0, 0 ) ) ],
+			# Y accel
+			[ accel.item( ( 1, 0 ) ) ],
+			# Alpha gyro
+			[ gyro.item( ( 0, 0 ) ) ]
+		]) 
 		# ----- Kalman predict step
 		F = get_F_matrix( X, U, imu_dt )
 		X = exec_f_func( X, U, imu_dt )
