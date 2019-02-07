@@ -73,21 +73,27 @@ def exec_h_func( x_vect, period ):
 	pos_gy   = x_vect.item( ( 1, 0 ) )
 	speed_gx = x_vect.item( ( 2, 0 ) )
 	speed_gy = x_vect.item( ( 3, 0 ) )
+	speed_norm = np.sqrt( speed_gx**2 + speed_gy**2 )
 	
 	return np.matrix([
 		[ pos_gx ],
 		[ pos_gy ],
-		[ speed_gx ],
-		[ speed_gy ]
+		[ speed_norm ]
 	])	
 	
 # Measurement Jacobian matrix
 def get_H_matrix( x_vect, period ):
+	speed_gx = x_vect.item( ( 2, 0 ) )
+	speed_gy = x_vect.item( ( 3, 0 ) )
+	
+	# d(speed_norm)/d(speed_gx)
+	d_sn_d_sgx = speed_gx / np.sqrt( speed_gx**2 + speed_gy**2 )
+	d_sn_d_sgy = speed_gy / np.sqrt( speed_gx**2 + speed_gy**2 )
+
 	return np.matrix([
-		[ 1, 0, 0, 0, 0, 0, 0 ],
-		[ 0, 1, 0, 0, 0, 0, 0 ],
-		[ 0, 0, 1, 0, 0, 0, 0 ],
-		[ 0, 0, 0, 1, 0, 0, 0 ]
+		[ 1,  0,  0,          0,           0,  0,  0 ],
+		[ 0,  1,  0,          0,           0,  0,  0 ],
+		[ 0,  0,  d_sn_d_sgx, d_sn_d_sgy,  0,  0,  0 ]
 	])
 	
 def ins_ext_kfilter( imu_time, imu_accel, accel_bias_std, 
@@ -128,10 +134,9 @@ def ins_ext_kfilter( imu_time, imu_accel, accel_bias_std,
 	])
 	# Measurement noise matrix
 	R = np.matrix([
-		[gnss_dist_std**2,  0,                 0,                  0                ],
-		[0,                 gnss_dist_std**2,  0,                  0                ],
-		[0,                 0,                 gnss_speed_std**2,  0                ],
-		[0,                 0,                 0,                  gnss_speed_std**2]
+		[gnss_dist_std**2,  0,                 0,                  ],
+		[0,                 gnss_dist_std**2,  0,                  ],
+		[0,                 0,                 gnss_speed_std**2,  ]
 	])
 	# State covariance matrix
 	P = np.matrix([
@@ -152,18 +157,15 @@ def ins_ext_kfilter( imu_time, imu_accel, accel_bias_std,
 			H = get_H_matrix( X, imu_dt )
 			gnss_dist_x = gnss_dist[ gnss_i ].item( ( 0, 0 ) )
 			gnss_dist_y = gnss_dist[ gnss_i ].item( ( 1, 0 ) )
-			gnss_speed_x = gnss_speed[ gnss_i ].item( ( 0, 0 ) )
-			gnss_speed_y = gnss_speed[ gnss_i ].item( ( 1, 0 ) )
+			gnss_speed_norm = gnss_speed[ gnss_i ].item( ( 0, 0 ) )
 			# Measurement matrix
 			Z = np.matrix([
 				# X position
 				[ gnss_dist_x ],
 				# Y position
 				[ gnss_dist_y ],
-				# X speed
-				[ gnss_speed_x ],
-				# Y speed
-				[ gnss_speed_y ]
+				# Speed norm
+				[ gnss_speed_norm ]
 			])
 			
 			# Calculate gain

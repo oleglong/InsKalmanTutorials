@@ -146,6 +146,12 @@ def generate_signals(
 	])
 	global_accel = [ body_dcm0 * acc for acc in body_accel ]
 	global_speed = speed_from_accel( global_accel, imu_period )
+	global_speed_norm = [ 
+		np.matrix([
+			[ np.sqrt( speed.item( ( 0, 0 ) )**2 + speed.item( ( 1, 0 ) )**2 ) ]
+		])
+		for speed in global_speed 
+	]
 	global_dist = dist_from_speed( global_speed, imu_period )
 	
 	######################### GNSS
@@ -173,18 +179,13 @@ def generate_signals(
 		)		
 		
 		# Speed
-		speed_x = global_speed[int( gnss_coeff * t )].item( (0, 0) )
-		speed_y = global_speed[int( gnss_coeff * t )].item( (1, 0) )
+		speed_norm = global_speed_norm[ int( gnss_coeff * t )].item( ( 0, 0 ) )
 		# Speed white noise
-		speed_noise_x = np.random.normal( 0, gnss_speed_w_std )
-		speed_noise_y = np.random.normal( 0, gnss_speed_w_std )
+		speed_noise = np.random.normal( 0, gnss_speed_w_std )
 		# GNSS speed
 		gnss_speed.append( 
 			np.matrix([
-				# X
-				[ speed_x + speed_noise_x ],
-				# Y
-				[ speed_y + speed_noise_y ]
+				[ speed_norm + speed_noise ]
 			]) 
 		)
 	
@@ -219,4 +220,4 @@ def generate_signals(
 			 gnss_time, gnss_speed, gnss_dist,
 			 # Reference data
 			 imu_accel_bias, body_alpha,
-			 global_accel, global_speed, global_dist ]
+			 global_accel, global_speed, global_speed_norm, global_dist ]
