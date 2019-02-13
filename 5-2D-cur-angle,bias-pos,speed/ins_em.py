@@ -5,14 +5,14 @@ from ins_ekf import ins_ext_kfilter
 
 
 # Config
-imu_period = 0.1
+imu_period = 0.008
 accel_bias_std = 0.3
 accel_w_std = 0.05
-# Radians in second
-gyro_w_std = np.deg2rad( 0.01 )
+gyro_bias_std = np.deg2rad( 1.0 )
+gyro_w_std = np.deg2rad( 0.1 )
 imu_body_alpha0_std = np.deg2rad( 3 )
 gnss_period = 0.5
-gnss_speed_w_std = 0.1
+gnss_speed_w_std = 0.3
 gnss_dist_w_std = 5
 speed_changes = [
 	[ +3, 10 ],
@@ -27,19 +27,24 @@ speed_changes = [
 	[ -2, 20 ]
 ]
 angle_changes = [
-	[ np.deg2rad( 0 ),  80 ],
-	[ np.deg2rad( -90 ), 20 ],
-	[ np.deg2rad( 0 ),  60 ]
+	[ np.deg2rad( 0 ),    20 ],
+	[ np.deg2rad( +45 ),  20 ],
+	[ np.deg2rad( +30 ),  20 ],
+	[ np.deg2rad( +60 ),  25 ],
+	[ np.deg2rad( +10 ),  5 ],
+	[ np.deg2rad( -20 ),  10 ],
+	[ np.deg2rad( -140 ), 30 ],
+	[ np.deg2rad( 0 ),    30 ]
 ]
 
 # Generate INS signals
 [ imu_time, imu_accel, imu_gyro, 
   gnss_time, gnss_speed, gnss_dist,
-  real_accel_bias, real_body_angles, 
+  real_accel_bias, real_gyro_bias, real_body_angles, 
   real_glob_accel, real_glob_speed, real_glob_speed_norm, real_glob_dist 
 ] = generate_signals( 
 	speed_changes, angle_changes,
-	imu_period, accel_bias_std, accel_w_std, gyro_w_std,
+	imu_period, accel_bias_std, accel_w_std, gyro_bias_std, gyro_w_std,
 	gnss_period, gnss_speed_w_std, gnss_dist_w_std
 )
 # Initial params estimation
@@ -50,7 +55,7 @@ print('Real a0: ' + str( np.rad2deg( real_body_alpha0 ) ) + ', estimated a0: ' +
 
 # Estimate body motion
 [ ins_state, ins_var ] = ins_ext_kfilter( 
-	imu_time, imu_accel, imu_gyro, accel_bias_std, 
+	imu_time, imu_accel, imu_gyro, accel_bias_std, gyro_bias_std,
 	imu_body_alpha0, imu_body_alpha0_std, 
 	gnss_time, gnss_speed, gnss_dist, gnss_speed_w_std, gnss_dist_w_std )
 
@@ -64,6 +69,7 @@ gnss_speed_norm		= [ v.item( (0, 0) ) for v in gnss_speed ]
 
 real_accel_bias_x 	= [ v.item( (0, 0) ) for v in real_accel_bias ]
 real_accel_bias_y 	= [ v.item( (1, 0) ) for v in real_accel_bias ]
+real_gyro_bias_alpha = [ np.rad2deg( v.item( (0, 0) ) ) for v in real_gyro_bias ]
 real_glob_accel_x 	= [ v.item( (0, 0) ) for v in real_glob_accel ]
 real_glob_accel_y 	= [ v.item( (1, 0) ) for v in real_glob_accel ]
 real_glob_speed_x 	= [ v.item( (0, 0) ) for v in real_glob_speed ]
@@ -82,14 +88,23 @@ ekf_accel_bias_x		= [ v.item( ( 4, 0 ) ) 	for v in ins_state ]
 ekf_accel_bias_x_var	= [ np.sqrt( v.item( ( 4, 4 ) ) ) 	for v in ins_var ]
 ekf_accel_bias_y		= [ v.item( ( 5, 0 ) ) 	for v in ins_state ]
 ekf_accel_bias_y_var	= [ np.sqrt( v.item( ( 5, 5 ) ) ) 	for v in ins_var ]
-ekf_alpha				= [ v.item( ( 6, 0 ) ) / np.pi * 180 for v in ins_state ]
-ekf_alpha_var			= [ np.sqrt( v.item( ( 6, 6 ) ) ) / np.pi * 180 for v in ins_var ]
+ekf_alpha				= [ np.rad2deg( v.item( ( 6, 0 ) ) ) for v in ins_state ]
+ekf_alpha_var			= [ np.rad2deg( np.sqrt( v.item( ( 6, 6 ) ) ) ) for v in ins_var ]
+ekf_gyro_bias_alpha		= [ np.rad2deg( v.item( ( 7, 0 ) ) ) for v in ins_state ]
+ekf_gyro_bias_alpha_var	= [ np.rad2deg( np.sqrt( v.item( ( 7, 7 ) ) ) )	for v in ins_var ]
 
 
 
 plt.figure()
 plt.title('alpha speed')
-plt.plot(imu_time, imu_alpha_speed, 'b')
+plt.plot(imu_time, imu_alpha_speed, 'r')
+
+plt.figure()
+plt.title('accel')
+plt.subplot(211)
+plt.plot(imu_time, imu_accel_x, 'r')
+plt.subplot(212)
+plt.plot(imu_time, imu_accel_y, 'r')
 
 plt.figure()
 plt.title('speed norm')
@@ -97,14 +112,18 @@ plt.plot(imu_time, real_glob_speed_norm, 'b', gnss_time, gnss_speed_norm, 'g', i
 
 plt.figure()
 plt.title('bias')
-plt.subplot(221)
+plt.subplot(231)
 plt.plot(imu_time, real_accel_bias_x, 'b', imu_time, ekf_accel_bias_x, 'c')
-plt.subplot(222)
+plt.subplot(232)
 plt.plot(imu_time, real_accel_bias_y, 'b', imu_time, ekf_accel_bias_y, 'c')
-plt.subplot(223)
+plt.subplot(233)
+plt.plot(imu_time, real_gyro_bias_alpha, 'b', imu_time, ekf_gyro_bias_alpha, 'c')
+plt.subplot(234)
 plt.plot(imu_time, ekf_accel_bias_x_var, 'c')
-plt.subplot(224)
+plt.subplot(235)
 plt.plot(imu_time, ekf_accel_bias_y_var, 'c')
+plt.subplot(236)
+plt.plot(imu_time, ekf_gyro_bias_alpha_var, 'c')
 
 plt.figure()
 plt.title('speed')

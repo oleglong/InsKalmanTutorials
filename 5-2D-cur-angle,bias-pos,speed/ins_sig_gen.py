@@ -227,7 +227,7 @@ def get_gnss_signal( global_speed_norm, global_dist, gnss_speed_w_std, gnss_dist
 	
 	return [ gnss_time, gnss_speed, gnss_dist ]
 
-def get_imu_signal( body_accel, body_alpha_speed, acc_bias_std, acc_w_std, gyro_w_std, period ):
+def get_imu_signal( body_accel, body_alpha_speed, acc_bias_std, acc_w_std, gyro_bias_std, gyro_w_std, period ):
 	# Simulation time
 	imu_time = np.arange( 0, len( body_accel ) )	
 	imu_time = [ t * period for t in imu_time ]
@@ -263,12 +263,20 @@ def get_imu_signal( body_accel, body_alpha_speed, acc_bias_std, acc_w_std, gyro_
 		])
 		for t in imu_time
 	]
+	# Gyro bias
+	imu_gyro_bias_alpha = np.random.normal(0, gyro_bias_std)
+	imu_gyro_bias = [
+		np.matrix([
+			[ imu_gyro_bias_alpha ],
+		])
+		for t in imu_time
+	]
 	# Noisy IMU accel output
 	imu_accel = [ body + w_noise + bias for body, w_noise, bias in zip( body_accel, imu_accel_w_noise, imu_accel_bias ) ]
 	# Noisy IMU gyro output
-	imu_gyro = [ body + w_noise for body, w_noise in zip( body_alpha_speed, imu_gyro_w_noise ) ]
+	imu_gyro = [ body + w_noise + bias for body, w_noise, bias in zip( body_alpha_speed, imu_gyro_w_noise, imu_gyro_bias ) ]
 	
-	return [ imu_time, imu_accel, imu_accel_bias, imu_gyro ]
+	return [ imu_time, imu_accel, imu_accel_bias, imu_gyro, imu_gyro_bias ]
 	
 def generate_signals(	
 					 speed_changes,
@@ -276,7 +284,8 @@ def generate_signals(
 					 
 					 imu_period,
 					 acc_bias_std,
-					 acc_w_std,  
+					 acc_w_std, 
+					 gyro_bias_std,					 
 					 gyro_w_std,  
 					 
 					 gnss_period,
@@ -302,9 +311,9 @@ def generate_signals(
 	)	
 	######################### IMU DATA
 	[ 
-		imu_time, imu_accel, imu_accel_bias, imu_gyro 
+		imu_time, imu_accel, imu_accel_bias, imu_gyro, imu_gyro_bias
 	] = get_imu_signal(
-		body_accel, body_alpha_speed, acc_bias_std, acc_w_std, gyro_w_std, imu_period
+		body_accel, body_alpha_speed, acc_bias_std, acc_w_std, gyro_bias_std, gyro_w_std, imu_period
 	)
 
 	return [ 
@@ -312,6 +321,6 @@ def generate_signals(
 		imu_time, imu_accel, imu_gyro,
 		gnss_time, gnss_speed, gnss_dist,
 		# Reference data
-		imu_accel_bias, global_alpha,
+		imu_accel_bias, imu_gyro_bias, global_alpha,
 		global_accel, global_speed, global_speed_norm, global_dist 
 	]

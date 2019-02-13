@@ -3,17 +3,18 @@ import numpy.ma as ma
 
 # State prediction function
 def exec_f_func( x_vect, u_vect, period ):
-	pos_gx   	 = x_vect.item( ( 0, 0 ) )
-	pos_gy   	 = x_vect.item( ( 1, 0 ) )
-	speed_gx	 = x_vect.item( ( 2, 0 ) )
-	speed_gy 	 = x_vect.item( ( 3, 0 ) )
-	accel_bias_x = x_vect.item( ( 4, 0 ) )
-	accel_bias_y = x_vect.item( ( 5, 0 ) )
-	alpha    	 = x_vect.item( ( 6, 0 ) )
+	pos_gx   	 	 = x_vect.item( ( 0, 0 ) )
+	pos_gy   	 	 = x_vect.item( ( 1, 0 ) )
+	speed_gx	 	 = x_vect.item( ( 2, 0 ) )
+	speed_gy 	 	 = x_vect.item( ( 3, 0 ) )
+	accel_bias_x 	 = x_vect.item( ( 4, 0 ) )
+	accel_bias_y 	 = x_vect.item( ( 5, 0 ) )
+	alpha    	 	 = x_vect.item( ( 6, 0 ) )
+	alpha_speed_bias = x_vect.item( ( 7, 0 ) )
 	
 	est_accel_ix = u_vect.item( ( 0, 0 ) ) - accel_bias_x
 	est_accel_iy = u_vect.item( ( 1, 0 ) ) - accel_bias_y
-	alpha_speed = u_vect.item( ( 2, 0 ) )
+	est_alpha_speed = u_vect.item( ( 2, 0 ) ) - alpha_speed_bias
 	
 	accel_gx = np.cos( alpha ) * est_accel_ix - np.sin( alpha ) * est_accel_iy
 	accel_gy = np.sin( alpha ) * est_accel_ix + np.cos( alpha ) * est_accel_iy
@@ -28,7 +29,8 @@ def exec_f_func( x_vect, u_vect, period ):
 		[ speed_gy + accel_gy * dt ],
 		[ accel_bias_x ],
 		[ accel_bias_y ],
-		[ alpha + alpha_speed * dt],
+		[ alpha + est_alpha_speed * dt],
+		[ alpha_speed_bias ]
 	])
 	
 # State prediction Jacobian matrix
@@ -58,13 +60,14 @@ def get_F_matrix( x_vect, u_vect, period ):
 	dt = period
 	
 	F = np.matrix([
-		[1,   0,   dt,   0,   d_agx_d_bx * dt2,  d_agx_d_by * dt2,  d_agx_d_a * dt2 ],
-		[0,   1,   0,    dt,  d_agy_d_bx * dt2,  d_agy_d_by * dt2,  d_agy_d_a * dt2 ],
-		[0,   0,   1,    0,   d_agx_d_bx * dt,   d_agx_d_by * dt,   d_agx_d_a * dt  ],
-		[0,   0,   0,    1,   d_agy_d_bx * dt,   d_agy_d_by * dt,   d_agy_d_a * dt  ],
-		[0,   0,   0,    0,   1,                 0,                 0               ],
-		[0,   0,   0,    0,   0,                 1,                 0               ],
-		[0,   0,   0,    0,   0,                 0,                 1               ]
+		[1,   0,   dt,   0,   d_agx_d_bx * dt2,  d_agx_d_by * dt2,  d_agx_d_a * dt2,  0   ],
+		[0,   1,   0,    dt,  d_agy_d_bx * dt2,  d_agy_d_by * dt2,  d_agy_d_a * dt2,  0   ],
+		[0,   0,   1,    0,   d_agx_d_bx * dt,   d_agx_d_by * dt,   d_agx_d_a * dt,   0   ],
+		[0,   0,   0,    1,   d_agy_d_bx * dt,   d_agy_d_by * dt,   d_agy_d_a * dt,   0   ],
+		[0,   0,   0,    0,   1,                 0,                 0,    			  0   ],
+		[0,   0,   0,    0,   0,                 1,                 0,    			  0   ],
+		[0,   0,   0,    0,   0,                 0,                 1,    		      -dt ],
+		[0,   0,   0,    0,   0,                 0,                 0,    			  1   ]
 	])
 	
 	return F
@@ -93,12 +96,12 @@ def get_H_matrix( x_vect, period ):
 	d_sn_d_sgy = speed_gy / np.sqrt( speed_gx**2 + speed_gy**2 )
 
 	return np.matrix([
-		[ 1,  0,  0,          0,           0,  0,  0 ],
-		[ 0,  1,  0,          0,           0,  0,  0 ],
-		[ 0,  0,  d_sn_d_sgx, d_sn_d_sgy,  0,  0,  0 ]
+		[ 1,  0,  0,          0,           0,  0,  0, 0 ],
+		[ 0,  1,  0,          0,           0,  0,  0, 0 ],
+		[ 0,  0,  d_sn_d_sgx, d_sn_d_sgy,  0,  0,  0, 0 ]
 	])
 	
-def ins_ext_kfilter( imu_time, imu_accel, imu_gyro, accel_bias_std, 
+def ins_ext_kfilter( imu_time, imu_accel, imu_gyro, accel_bias_std, gyro_bias_std,
 					 alpha0, alpha0_std, 
 					 gnss_time, gnss_speed, gnss_dist, gnss_speed_std, gnss_dist_std ):
 	# Output data
@@ -117,22 +120,25 @@ def ins_ext_kfilter( imu_time, imu_accel, imu_gyro, accel_bias_std,
 		[0.0],
 		# Y speed
 		[0.0],
-		# X bias
+		# Accel X bias
 		[0.0],
-		# Y bias
+		# Accel Y bias
 		[0.0],
 		# alpha
-		[alpha0]
+		[alpha0],
+		# Gyro alpha speed bias
+		[0.0]
 	])
 	# Process noise matrix
 	Q = np.matrix([
-		[0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0]
 	])
 	# Measurement noise matrix
 	R = np.matrix([
@@ -142,13 +148,14 @@ def ins_ext_kfilter( imu_time, imu_accel, imu_gyro, accel_bias_std,
 	])
 	# State covariance matrix
 	P = np.matrix([
-		[0, 0, 0, 0, 0,                 0,                 0            ],
-		[0, 0, 0, 0, 0,                 0,                 0            ],
-		[0, 0, 0, 0, 0,                 0,                 0            ],
-		[0, 0, 0, 0, 0,                 0,                 0            ],
-		[0, 0, 0, 0, accel_bias_std**2, 0,                 0            ],
-		[0, 0, 0, 0, 0,                 accel_bias_std**2, 0            ],
-		[0, 0, 0, 0, 0,                 0,                 alpha0_std**2],
+		[0, 0, 0, 0, 0,                 0,                 0,              0                ],
+		[0, 0, 0, 0, 0,                 0,                 0,              0                ],
+		[0, 0, 0, 0, 0,                 0,                 0,              0                ],
+		[0, 0, 0, 0, 0,                 0,                 0,              0                ],
+		[0, 0, 0, 0, accel_bias_std**2, 0,                 0,              0                ],
+		[0, 0, 0, 0, 0,                 accel_bias_std**2, 0,              0                ],
+		[0, 0, 0, 0, 0,                 0,                 alpha0_std**2,  0                ],
+		[0, 0, 0, 0, 0,                 0,                 0, 	           gyro_bias_std**2 ],
 	])
 	
 	gnss_i = 0
