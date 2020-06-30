@@ -139,7 +139,7 @@ def rot_speed_from_angles( angles, period ):
 	
 	return rot_speed
 		
-# X - от хвоста к носу, Y - вверх, Z - от левого крыла к правому
+# X - from the tail of the airplane to the nose, Y - up, Z - from the left wing to the right wing of the airplane
 def get_body_motion( psi0, theta0, gamma0, rot_changes_x, rot_changes_y, rot_changes_z, speed_changes, period ):
 	# Speed norm
 	global_speed_norm = [
